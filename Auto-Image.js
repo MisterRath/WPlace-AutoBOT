@@ -1,6 +1,8 @@
 (async () => {
   const CONFIG = {
     COOLDOWN_DEFAULT: 31000,
+    MODULO_TOTAL: 2,  
+    MODULO_INDEX: 1,   
     TRANSPARENCY_THRESHOLD: 100,
     WHITE_THRESHOLD: 250,
     LOG_INTERVAL: 10,
@@ -122,13 +124,13 @@
 
   const Utils = {
     sleep: ms => new Promise(r => setTimeout(r, ms)),
-    
+
     colorDistance: (a, b) => Math.sqrt(
-      Math.pow(a[0] - b[0], 2) + 
-      Math.pow(a[1] - b[1], 2) + 
+      Math.pow(a[0] - b[0], 2) +
+      Math.pow(a[1] - b[1], 2) +
       Math.pow(a[2] - b[2], 2)
     ),
-    
+
     createImageUploader: () => new Promise(resolve => {
       const input = document.createElement('input');
       input.type = 'file';
@@ -140,7 +142,7 @@
       };
       input.click();
     }),
-    
+
     extractAvailableColors: () => {
       const colorElements = document.querySelectorAll('[id^="color-"]');
       return Array.from(colorElements)
@@ -156,22 +158,22 @@
           return { id, rgb };
         });
     },
-    
+
     formatTime: ms => {
       const seconds = Math.floor((ms / 1000) % 60);
       const minutes = Math.floor((ms / (1000 * 60)) % 60);
       const hours = Math.floor((ms / (1000 * 60 * 60)) % 24);
       const days = Math.floor(ms / (1000 * 60 * 60 * 24));
-      
+
       let result = '';
       if (days > 0) result += `${days}d `;
       if (hours > 0 || days > 0) result += `${hours}h `;
       if (minutes > 0 || hours > 0 || days > 0) result += `${minutes}m `;
       result += `${seconds}s`;
-      
+
       return result;
     },
-    
+
     showAlert: (message, type = 'info') => {
       const alert = document.createElement('div');
       alert.style.position = 'fixed';
@@ -187,40 +189,40 @@
       alert.style.display = 'flex';
       alert.style.alignItems = 'center';
       alert.style.gap = '10px';
-      
+
       const icons = {
         error: 'exclamation-circle',
         success: 'check-circle',
         warning: 'exclamation-triangle',
         info: 'info-circle'
       };
-      
+
       alert.innerHTML = `
         <i class="fas fa-${icons[type] || 'info-circle'}"></i>
         <span>${message}</span>
       `;
-      
+
       document.body.appendChild(alert);
-      
+
       setTimeout(() => {
         alert.style.opacity = '0';
         alert.style.transition = 'opacity 0.5s';
         setTimeout(() => alert.remove(), 500);
       }, 3000);
     },
-    
+
     calculateEstimatedTime: (remainingPixels, currentCharges, cooldown) => {
       const pixelsPerCharge = currentCharges > 0 ? currentCharges : 0;
       const fullCycles = Math.ceil((remainingPixels - pixelsPerCharge) / Math.max(currentCharges, 1));
       return (fullCycles * cooldown) + ((remainingPixels - 1) * 100);
     },
-    
+
     isWhitePixel: (r, g, b) => {
-      return r >= CONFIG.WHITE_THRESHOLD && 
-             g >= CONFIG.WHITE_THRESHOLD && 
-             b >= CONFIG.WHITE_THRESHOLD;
+      return r >= CONFIG.WHITE_THRESHOLD &&
+        g >= CONFIG.WHITE_THRESHOLD &&
+        b >= CONFIG.WHITE_THRESHOLD;
     },
-    
+
     t: (key, params = {}) => {
       let text = TEXTS[state.language][key] || TEXTS.en[key] || key;
       for (const [k, v] of Object.entries(params)) {
@@ -245,16 +247,16 @@
         return false;
       }
     },
-    
+
     async getCharges() {
       try {
-        const res = await fetch('https://backend.wplace.live/me', { 
-          credentials: 'include' 
+        const res = await fetch('https://backend.wplace.live/me', {
+          credentials: 'include'
         });
         const data = await res.json();
-        return { 
-          charges: data.charges?.count || 0, 
-          cooldown: data.charges?.cooldownMs || CONFIG.COOLDOWN_DEFAULT 
+        return {
+          charges: data.charges?.count || 0,
+          cooldown: data.charges?.cooldownMs || CONFIG.COOLDOWN_DEFAULT
         };
       } catch {
         return { charges: 0, cooldown: CONFIG.COOLDOWN_DEFAULT };
@@ -271,7 +273,7 @@
       this.previewCanvas = document.createElement('canvas');
       this.previewCtx = this.previewCanvas.getContext('2d');
     }
-    
+
     async load() {
       return new Promise((resolve, reject) => {
         this.img.onload = () => {
@@ -284,30 +286,30 @@
         this.img.src = this.imageSrc;
       });
     }
-    
+
     getPixelData() {
       return this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height).data;
     }
-    
+
     getDimensions() {
       return { width: this.canvas.width, height: this.canvas.height };
     }
-    
+
     resize(newWidth, newHeight) {
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = newWidth;
       tempCanvas.height = newHeight;
       const tempCtx = tempCanvas.getContext('2d');
-      
+
       tempCtx.drawImage(this.img, 0, 0, newWidth, newHeight);
-      
+
       this.canvas.width = newWidth;
       this.canvas.height = newHeight;
       this.ctx.drawImage(tempCanvas, 0, 0);
-      
+
       return this.getPixelData();
     }
-    
+
     generatePreview(newWidth, newHeight) {
       this.previewCanvas.width = newWidth;
       this.previewCanvas.height = newHeight;
@@ -320,8 +322,8 @@
   function findClosestColor(rgb, palette) {
     return palette.reduce((closest, current) => {
       const currentDistance = Utils.colorDistance(rgb, current.rgb);
-      return currentDistance < closest.distance 
-        ? { color: current, distance: currentDistance } 
+      return currentDistance < closest.distance
+        ? { color: current, distance: currentDistance }
         : closest;
     }, { color: palette[0], distance: Utils.colorDistance(rgb, palette[0].rgb) }).color.id;
   }
@@ -565,63 +567,79 @@
     const container = document.createElement('div');
     container.id = 'wplace-image-bot-container';
     container.innerHTML = `
-      <div class="wplace-header">
-        <div class="wplace-header-title">
-          <i class="fas fa-image"></i>
-          <span>${Utils.t('title')}</span>
+  <div class="wplace-header">
+    <div class="wplace-header-title">
+      <i class="fas fa-image"></i>
+      <span>${Utils.t('title')}</span>
+    </div>
+    <div class="wplace-header-controls">
+      <button id="minimizeBtn" class="wplace-header-btn" title="${Utils.t('minimize')}">
+        <i class="fas fa-minus"></i>
+      </button>
+    </div>
+  </div>
+  <div class="wplace-content">
+    <div class="wplace-controls">
+      <button id="initBotBtn" class="wplace-btn wplace-btn-primary">
+        <i class="fas fa-robot"></i>
+        <span>${Utils.t('initBot')}</span>
+      </button>
+      <button id="uploadBtn" class="wplace-btn wplace-btn-upload" disabled>
+        <i class="fas fa-upload"></i>
+        <span>${Utils.t('uploadImage')}</span>
+      </button>
+      <button id="resizeBtn" class="wplace-btn wplace-btn-primary" disabled>
+        <i class="fas fa-expand"></i>
+        <span>${Utils.t('resizeImage')}</span>
+      </button>
+      <button id="selectPosBtn" class="wplace-btn wplace-btn-select" disabled>
+        <i class="fas fa-crosshairs"></i>
+        <span>${Utils.t('selectPosition')}</span>
+      </button>
+      <button id="startBtn" class="wplace-btn wplace-btn-start" disabled>
+        <i class="fas fa-play"></i>
+        <span>${Utils.t('startPainting')}</span>
+      </button>
+      <button id="stopBtn" class="wplace-btn wplace-btn-stop" disabled>
+        <i class="fas fa-stop"></i>
+        <span>${Utils.t('stopPainting')}</span>
+      </button>
+    </div>
+
+    <!-- 🎯 Bloc de configuration Modulo -->
+    <div class="wplace-stats">
+      <div class="wplace-stat-item">
+        <div class="wplace-stat-label">
+          <i class="fas fa-layer-group"></i> Modulo total
         </div>
-        <div class="wplace-header-controls">
-          <button id="minimizeBtn" class="wplace-header-btn" title="${Utils.t('minimize')}">
-            <i class="fas fa-minus"></i>
-          </button>
+        <input id="moduloTotalInput" type="number" min="1" value="1" style="width: 60px; text-align: center; border-radius: 4px; border: none; padding: 4px;">
+      </div>
+      <div class="wplace-stat-item">
+        <div class="wplace-stat-label">
+          <i class="fas fa-hashtag"></i> Modulo index
+        </div>
+        <input id="moduloIndexInput" type="number" min="0" value="0" style="width: 60px; text-align: center; border-radius: 4px; border: none; padding: 4px;">
+      </div>
+    </div>
+
+    <div class="wplace-progress">
+      <div id="progressBar" class="wplace-progress-bar" style="width: 0%"></div>
+    </div>
+
+    <div class="wplace-stats">
+      <div id="statsArea">
+        <div class="wplace-stat-item">
+          <div class="wplace-stat-label"><i class="fas fa-info-circle"></i> ${Utils.t('initMessage')}</div>
         </div>
       </div>
-      <div class="wplace-content">
-        <div class="wplace-controls">
-          <button id="initBotBtn" class="wplace-btn wplace-btn-primary">
-            <i class="fas fa-robot"></i>
-            <span>${Utils.t('initBot')}</span>
-          </button>
-          <button id="uploadBtn" class="wplace-btn wplace-btn-upload" disabled>
-            <i class="fas fa-upload"></i>
-            <span>${Utils.t('uploadImage')}</span>
-          </button>
-          <button id="resizeBtn" class="wplace-btn wplace-btn-primary" disabled>
-            <i class="fas fa-expand"></i>
-            <span>${Utils.t('resizeImage')}</span>
-          </button>
-          <button id="selectPosBtn" class="wplace-btn wplace-btn-select" disabled>
-            <i class="fas fa-crosshairs"></i>
-            <span>${Utils.t('selectPosition')}</span>
-          </button>
-          <button id="startBtn" class="wplace-btn wplace-btn-start" disabled>
-            <i class="fas fa-play"></i>
-            <span>${Utils.t('startPainting')}</span>
-          </button>
-          <button id="stopBtn" class="wplace-btn wplace-btn-stop" disabled>
-            <i class="fas fa-stop"></i>
-            <span>${Utils.t('stopPainting')}</span>
-          </button>
-        </div>
-        
-        <div class="wplace-progress">
-          <div id="progressBar" class="wplace-progress-bar" style="width: 0%"></div>
-        </div>
-        
-        <div class="wplace-stats">
-          <div id="statsArea">
-            <div class="wplace-stat-item">
-              <div class="wplace-stat-label"><i class="fas fa-info-circle"></i> ${Utils.t('initMessage')}</div>
-            </div>
-          </div>
-        </div>
-        
-        <div id="statusText" class="wplace-status status-default">
-          ${Utils.t('waitingInit')}
-        </div>
-      </div>
-    `;
-    
+    </div>
+
+    <div id="statusText" class="wplace-status status-default">
+      ${Utils.t('waitingInit')}
+    </div>
+  </div>
+`;
+
     const resizeContainer = document.createElement('div');
     resizeContainer.className = 'resize-container';
     resizeContainer.innerHTML = `
@@ -652,29 +670,29 @@
         </div>
       </div>
     `;
-    
+
     const resizeOverlay = document.createElement('div');
     resizeOverlay.className = 'resize-overlay';
-    
+
     document.body.appendChild(container);
     document.body.appendChild(resizeOverlay);
     document.body.appendChild(resizeContainer);
-    
+
     const header = container.querySelector('.wplace-header');
     let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
-    
+
     header.onmousedown = dragMouseDown;
-    
+
     function dragMouseDown(e) {
       if (e.target.closest('.wplace-header-btn')) return;
-      
+
       e.preventDefault();
       pos3 = e.clientX;
       pos4 = e.clientY;
       document.onmouseup = closeDragElement;
       document.onmousemove = elementDrag;
     }
-    
+
     function elementDrag(e) {
       e.preventDefault();
       pos1 = pos3 - e.clientX;
@@ -684,12 +702,12 @@
       container.style.top = (container.offsetTop - pos2) + "px";
       container.style.left = (container.offsetLeft - pos1) + "px";
     }
-    
+
     function closeDragElement() {
       document.onmouseup = null;
       document.onmousemove = null;
     }
-    
+
     const initBotBtn = container.querySelector('#initBotBtn');
     const uploadBtn = container.querySelector('#uploadBtn');
     const resizeBtn = container.querySelector('#resizeBtn');
@@ -701,7 +719,7 @@
     const progressBar = container.querySelector('#progressBar');
     const statsArea = container.querySelector('#statsArea');
     const content = container.querySelector('.wplace-content');
-    
+
     const widthSlider = resizeContainer.querySelector('#widthSlider');
     const heightSlider = resizeContainer.querySelector('#heightSlider');
     const widthValue = resizeContainer.querySelector('#widthValue');
@@ -710,7 +728,7 @@
     const resizePreview = resizeContainer.querySelector('#resizePreview');
     const confirmResize = resizeContainer.querySelector('#confirmResize');
     const cancelResize = resizeContainer.querySelector('#cancelResize');
-    
+
     minimizeBtn.addEventListener('click', () => {
       state.minimized = !state.minimized;
       if (state.minimized) {
@@ -721,7 +739,7 @@
         minimizeBtn.innerHTML = '<i class="fas fa-minus"></i>';
       }
     });
-    
+
     window.updateUI = (messageKey, type = 'default', params = {}) => {
       const message = Utils.t(messageKey, params);
       statusText.textContent = message;
@@ -733,23 +751,23 @@
 
     window.updateStats = async () => {
       if (!state.colorsChecked || !state.imageLoaded) return;
-      
+
       const { charges, cooldown } = await WPlaceService.getCharges();
       state.currentCharges = Math.floor(charges);
       state.cooldown = cooldown;
-      
-      const progress = state.totalPixels > 0 ? 
+
+      const progress = state.totalPixels > 0 ?
         Math.round((state.paintedPixels / state.totalPixels) * 100) : 0;
       const remainingPixels = state.totalPixels - state.paintedPixels;
-      
+
       state.estimatedTime = Utils.calculateEstimatedTime(
-        remainingPixels, 
-        state.currentCharges, 
+        remainingPixels,
+        state.currentCharges,
         state.cooldown
       );
-      
+
       progressBar.style.width = `${progress}%`;
-      
+
       statsArea.innerHTML = `
         <div class="wplace-stat-item">
           <div class="wplace-stat-label"><i class="fas fa-image"></i> ${Utils.t('progress')}</div>
@@ -771,30 +789,30 @@
         ` : ''}
       `;
     };
-    
+
     function showResizeDialog(processor) {
       const { width, height } = processor.getDimensions();
       const aspectRatio = width / height;
-      
+
       widthSlider.value = width;
       heightSlider.value = height;
       widthValue.textContent = width;
       heightValue.textContent = height;
       resizePreview.src = processor.img.src;
-      
+
       resizeOverlay.style.display = 'block';
       resizeContainer.style.display = 'block';
-      
+
       const updatePreview = () => {
         const newWidth = parseInt(widthSlider.value);
         const newHeight = parseInt(heightSlider.value);
-        
+
         widthValue.textContent = newWidth;
         heightValue.textContent = newHeight;
-        
+
         resizePreview.src = processor.generatePreview(newWidth, newHeight);
       };
-      
+
       widthSlider.addEventListener('input', () => {
         if (keepAspect.checked) {
           const newWidth = parseInt(widthSlider.value);
@@ -803,7 +821,7 @@
         }
         updatePreview();
       });
-      
+
       heightSlider.addEventListener('input', () => {
         if (keepAspect.checked) {
           const newHeight = parseInt(heightSlider.value);
@@ -812,13 +830,13 @@
         }
         updatePreview();
       });
-      
+
       confirmResize.onclick = () => {
         const newWidth = parseInt(widthSlider.value);
         const newHeight = parseInt(heightSlider.value);
-        
+
         const newPixels = processor.resize(newWidth, newHeight);
-        
+
         let totalValidPixels = 0;
         for (let y = 0; y < newHeight; y++) {
           for (let x = 0; x < newWidth; x++) {
@@ -827,71 +845,71 @@
             const g = newPixels[idx + 1];
             const b = newPixels[idx + 2];
             const alpha = newPixels[idx + 3];
-            
+
             if (alpha < CONFIG.TRANSPARENCY_THRESHOLD) continue;
             if (Utils.isWhitePixel(r, g, b)) continue;
-            
+
             totalValidPixels++;
           }
         }
-        
+
         state.imageData.pixels = newPixels;
         state.imageData.width = newWidth;
         state.imageData.height = newHeight;
         state.imageData.totalPixels = totalValidPixels;
         state.totalPixels = totalValidPixels;
         state.paintedPixels = 0;
-        
+
         updateStats();
         updateUI('resizeSuccess', 'success', { width: newWidth, height: newHeight });
-        
+
         closeResizeDialog();
       };
-      
+
       cancelResize.onclick = closeResizeDialog;
     }
-    
+
     function closeResizeDialog() {
       resizeOverlay.style.display = 'none';
       resizeContainer.style.display = 'none';
     }
-    
+
     initBotBtn.addEventListener('click', async () => {
       try {
         updateUI('checkingColors', 'default');
-        
+
         state.availableColors = Utils.extractAvailableColors();
-        
+
         if (state.availableColors.length === 0) {
           Utils.showAlert(Utils.t('noColorsFound'), 'error');
           updateUI('noColorsFound', 'error');
           return;
         }
-        
+
         state.colorsChecked = true;
         uploadBtn.disabled = false;
         selectPosBtn.disabled = false;
         initBotBtn.style.display = 'none';
-        
+
         updateUI('colorsFound', 'success', { count: state.availableColors.length });
         updateStats();
-        
+
       } catch {
         updateUI('imageError', 'error');
       }
     });
-    
+
     uploadBtn.addEventListener('click', async () => {
       try {
         updateUI('loadingImage', 'default');
         const imageSrc = await Utils.createImageUploader();
-        
+
         const processor = new ImageProcessor(imageSrc);
         await processor.load();
-        
+
         const { width, height } = processor.getDimensions();
         const pixels = processor.getPixelData();
-        
+
         let totalValidPixels = 0;
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
@@ -900,14 +918,14 @@
             const g = pixels[idx + 1];
             const b = pixels[idx + 2];
             const alpha = pixels[idx + 3];
-            
+
             if (alpha < CONFIG.TRANSPARENCY_THRESHOLD) continue;
             if (Utils.isWhitePixel(r, g, b)) continue;
-            
+
             totalValidPixels++;
           }
         }
-        
+
         state.imageData = {
           width,
           height,
@@ -915,54 +933,54 @@
           totalPixels: totalValidPixels,
           processor
         };
-        
+
         state.totalPixels = totalValidPixels;
         state.paintedPixels = 0;
         state.imageLoaded = true;
         state.lastPosition = { x: 0, y: 0 };
-        
+
         resizeBtn.disabled = false;
-        
+
         if (state.startPosition) {
           startBtn.disabled = false;
         }
-        
+
         updateStats();
         updateUI('imageLoaded', 'success', { count: totalValidPixels });
       } catch {
         updateUI('imageError', 'error');
       }
     });
-    
+
     resizeBtn.addEventListener('click', () => {
       if (state.imageLoaded && state.imageData.processor) {
         showResizeDialog(state.imageData.processor);
       }
     });
-    
+
     selectPosBtn.addEventListener('click', async () => {
       if (state.selectingPosition) return;
-      
+
       state.selectingPosition = true;
       state.startPosition = null;
       state.region = null;
       startBtn.disabled = true;
-      
+
       Utils.showAlert(Utils.t('selectPositionAlert'), 'info');
       updateUI('waitingPosition', 'default');
-      
+
       const originalFetch = window.fetch;
-      
+
       window.fetch = async (url, options) => {
-        if (typeof url === 'string' && 
-            url.includes('https://backend.wplace.live/s0/pixel/') && 
-            options?.method?.toUpperCase() === 'POST') {
-          
+        if (typeof url === 'string' &&
+          url.includes('https://backend.wplace.live/s0/pixel/') &&
+          options?.method?.toUpperCase() === 'POST') {
+
           try {
             const response = await originalFetch(url, options);
             const clonedResponse = response.clone();
             const data = await clonedResponse.json();
-            
+
             if (data?.painted === 1) {
               const regionMatch = url.match(/\/pixel\/(\d+)\/(\d+)/);
               if (regionMatch && regionMatch.length >= 3) {
@@ -971,7 +989,7 @@
                   y: parseInt(regionMatch[2])
                 };
               }
-              
+
               const payload = JSON.parse(options.body);
               if (payload?.coords && Array.isArray(payload.coords)) {
                 state.startPosition = {
@@ -979,17 +997,17 @@
                   y: payload.coords[1]
                 };
                 state.lastPosition = { x: 0, y: 0 };
-                
+
                 if (state.imageLoaded) {
                   startBtn.disabled = false;
                 }
-                
+
                 window.fetch = originalFetch;
                 state.selectingPosition = false;
                 updateUI('positionSet', 'success');
               }
             }
-            
+
             return response;
           } catch {
             return originalFetch(url, options);
@@ -997,7 +1015,7 @@
         }
         return originalFetch(url, options);
       };
-      
+
       setTimeout(() => {
         if (state.selectingPosition) {
           window.fetch = originalFetch;
@@ -1007,13 +1025,23 @@
         }
       }, 120000);
     });
-    
+
     startBtn.addEventListener('click', async () => {
+      const moduloTotalInput = document.getElementById('moduloTotalInput');
+      const moduloIndexInput = document.getElementById('moduloIndexInput');
+
+      CONFIG.MODULO_TOTAL = Math.max(1, parseInt(moduloTotalInput.value) || 1);
+      CONFIG.MODULO_INDEX = Math.max(0, parseInt(moduloIndexInput.value) || 0);
+
+      // ✅ Sauvegarde locale pour relance ultérieure
+      localStorage.setItem('wplace_modulo_total', CONFIG.MODULO_TOTAL);
+      localStorage.setItem('wplace_modulo_index', CONFIG.MODULO_INDEX);
+
       if (!state.imageLoaded || !state.startPosition || !state.region) {
         updateUI('missingRequirements', 'error');
         return;
       }
-      
+
       state.running = true;
       state.stopFlag = false;
       startBtn.disabled = true;
@@ -1021,9 +1049,9 @@
       uploadBtn.disabled = true;
       selectPosBtn.disabled = true;
       resizeBtn.disabled = true;
-      
+
       updateUI('startPaintingMsg', 'success');
-      
+
       try {
         await processImage();
       } catch {
@@ -1031,7 +1059,7 @@
       } finally {
         state.running = false;
         stopBtn.disabled = true;
-        
+
         if (!state.stopFlag) {
           startBtn.disabled = true;
           uploadBtn.disabled = false;
@@ -1042,7 +1070,7 @@
         }
       }
     });
-    
+
     stopBtn.addEventListener('click', () => {
       state.stopFlag = true;
       state.running = false;
@@ -1055,79 +1083,85 @@
     const { width, height, pixels } = state.imageData;
     const { x: startX, y: startY } = state.startPosition;
     const { x: regionX, y: regionY } = state.region;
-    
-    let startRow = state.lastPosition.y || 0;
-    let startCol = state.lastPosition.x || 0;
-    
-    outerLoop:
-    for (let y = startRow; y < height; y++) {
-      for (let x = (y === startRow ? startCol : 0); x < width; x++) {
-        if (state.stopFlag) {
-          state.lastPosition = { x, y };
-          updateUI('paintingPaused', 'warning', { x, y });
-          break outerLoop;
-        }
-        
+
+    // 1. Construire la liste des pixels valides
+    const validPixels = [];
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
         const idx = (y * width + x) * 4;
         const r = pixels[idx];
         const g = pixels[idx + 1];
         const b = pixels[idx + 2];
         const alpha = pixels[idx + 3];
-        
+
         if (alpha < CONFIG.TRANSPARENCY_THRESHOLD) continue;
         if (Utils.isWhitePixel(r, g, b)) continue;
-        
-        const rgb = [r, g, b];
-        const colorId = findClosestColor(rgb, state.availableColors);
-        
-        if (state.currentCharges < 1) {
-          updateUI('noCharges', 'warning', { time: Utils.formatTime(state.cooldown) });
-          await Utils.sleep(state.cooldown);
-          
-          const chargeUpdate = await WPlaceService.getCharges();
-          state.currentCharges = chargeUpdate.charges;
-          state.cooldown = chargeUpdate.cooldown;
-        }
-        
-        const pixelX = startX + x;
-        const pixelY = startY + y;
-        
-        const success = await WPlaceService.paintPixelInRegion(
-          regionX,
-          regionY,
-          pixelX,
-          pixelY,
-          colorId
+
+        validPixels.push({ x, y, rgb: [r, g, b] });
+      }
+    }
+
+    // 2. Parcours avec MODULO_INDEX et MODULO_TOTAL
+    for (let i = CONFIG.MODULO_INDEX; i < validPixels.length; i += CONFIG.MODULO_TOTAL) {
+      if (state.stopFlag) {
+        const { x, y } = validPixels[i];
+        updateUI('paintingPaused', 'warning', { x, y });
+        break;
+      }
+
+      const { x, y, rgb } = validPixels[i];
+      const colorId = findClosestColor(rgb, state.availableColors);
+
+      if (state.currentCharges < 1) {
+        updateUI('noCharges', 'warning', { time: Utils.formatTime(state.cooldown) });
+        await Utils.sleep(state.cooldown);
+
+        const chargeUpdate = await WPlaceService.getCharges();
+        state.currentCharges = chargeUpdate.charges;
+        state.cooldown = chargeUpdate.cooldown;
+      }
+
+      const pixelX = startX + x;
+      const pixelY = startY + y;
+
+      const success = await WPlaceService.paintPixelInRegion(
+        regionX,
+        regionY,
+        pixelX,
+        pixelY,
+        colorId
+      );
+
+      if (success) {
+	      console.log(i);
+        state.paintedPixels++;
+        state.currentCharges--;
+
+        state.estimatedTime = Utils.calculateEstimatedTime(
+          state.totalPixels - state.paintedPixels,
+          state.currentCharges,
+          state.cooldown
         );
-        
-        if (success) {
-          state.paintedPixels++;
-          state.currentCharges--;
-          
-          state.estimatedTime = Utils.calculateEstimatedTime(
-            state.totalPixels - state.paintedPixels,
-            state.currentCharges,
-            state.cooldown
-          );
-          
-          if (state.paintedPixels % CONFIG.LOG_INTERVAL === 0) {
-            updateStats();
-            updateUI('paintingProgress', 'default', { 
-              painted: state.paintedPixels, 
-              total: state.totalPixels 
-            });
-          }
+
+        if (state.paintedPixels % CONFIG.LOG_INTERVAL === 0) {
+          updateStats();
+          updateUI('paintingProgress', 'default', {
+            painted: state.paintedPixels,
+            total: state.totalPixels
+          });
         }
       }
     }
-    
+
+
     if (state.stopFlag) {
       updateUI('paintingStopped', 'warning');
     } else {
       updateUI('paintingComplete', 'success', { count: state.paintedPixels });
       state.lastPosition = { x: 0, y: 0 };
     }
-    
+
     updateStats();
   }
 
